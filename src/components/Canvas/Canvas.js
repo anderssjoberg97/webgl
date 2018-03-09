@@ -28,6 +28,9 @@ type Props = {
 }
 export default class Canvas extends Component<Props> {
 
+    // When last frame was rendered
+    then = 0;
+    // Current rotation of square
     squareRotation = 0.0;
 
     constructor(){
@@ -47,7 +50,15 @@ export default class Canvas extends Component<Props> {
         return (<canvas className={'Canvas'} width={800} height={600}></canvas>);
     }
 
-    drawScene(gl: WebGLRenderingContext, programInfo: ProgramInfo, buffers: BufferContainer) {
+    /**
+     * Iniitializes a WebGL shader program
+     * @param  {WebGLRenderingContext} gl   WebGL context
+     * @param  {ProgramInfo} programInfo    Vertex shader source code
+     * @param  {BufferContainer} buffers    Fragment shader source code
+     * @param  {number}                     Time passed since last frame
+     */
+    drawScene: (gl: WebGLRenderingContext, programInfo: ProgramInfo, buffers: BufferContainer, deltaTime: number) => void;
+    drawScene(gl: WebGLRenderingContext, programInfo: ProgramInfo, buffers: BufferContainer, deltaTime: number): void {
         // Set up clearing
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clearDepth(1.0);
@@ -140,12 +151,12 @@ export default class Canvas extends Component<Props> {
         gl.uniformMatrix4fv(
             programInfo.uniformLocations.projectionMatrix,
             false,
-            projectionMatrix
+            ((projectionMatrix: any): Float32Array)
         );
         gl.uniformMatrix4fv(
             programInfo.uniformLocations.modelViewMatrix,
             false,
-            modelViewMatrix
+            ((modelViewMatrix: any): Float32Array)
         );
 
         {
@@ -154,6 +165,7 @@ export default class Canvas extends Component<Props> {
             gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
         }
 
+        this.squareRotation += deltaTime;
     }
 
 
@@ -212,9 +224,23 @@ export default class Canvas extends Component<Props> {
 
         const buffers = this.initializeBuffers(gl);
 
-        this.drawScene(gl, programInfo, buffers);
-    }
+        /**
+         * Renders a frame
+         * @param  {number} now    Time since page was loaded
+         */
+        function renderGl(now: number): void {
+            now *= 0.001;
+            const deltaTime = now - this.then;
+            this.then = now;
 
+            this.drawScene(gl, programInfo, buffers, deltaTime);
+            requestAnimationFrame(renderGl);
+        }
+
+        renderGl = renderGl.bind(this);
+
+        requestAnimationFrame(renderGl);
+    }
 
     /**
      * Iniitializes a WebGL shader program
