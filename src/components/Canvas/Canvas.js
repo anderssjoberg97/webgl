@@ -2,6 +2,9 @@
 import React, { Component } from 'react';
 import {mat4} from 'gl-matrix';
 
+import {compileShader, createShaderProgram} from './helpers';
+import {vertexShaderSource} from './vertexShader';
+import {fragmentShaderSource} from './fragmentShader';
 import './Canvas.css';
 
 type ProgramInfo = {
@@ -19,6 +22,7 @@ type ProgramInfo = {
 type BufferContainer = {
     position: WebGLBuffer,
     color: WebGLBuffer,
+    indices: WebGLBuffer,
 }
 
 
@@ -30,15 +34,13 @@ export default class Canvas extends Component<Props> {
 
     // When last frame was rendered
     then = 0;
-    // Current rotation of square
-    squareRotation = 0.0;
+    // Current rotation
+    rotation = 0.0;
 
     constructor(){
         super();
 
         this.initializeGl = this.initializeGl.bind(this);
-        this.initializeShaderProgram = this.initializeShaderProgram.bind(this);
-        this.loadShader = this.loadShader.bind(this);
         this.initializeBuffers = this.initializeBuffers.bind(this);
     }
     componentDidMount(){
@@ -92,16 +94,21 @@ export default class Canvas extends Component<Props> {
             modelViewMatrix,
             [-0.0, 0.0, -6.0]
         );
-        // Rotate square
+        // Rotate cube
         mat4.rotate(modelViewMatrix,
             modelViewMatrix,
-            this.squareRotation,
+            this.rotation,
             [0, 0, 1]
+        );
+        mat4.rotate(modelViewMatrix,
+            modelViewMatrix,
+            this.rotation * 0.7,
+            [0, 1, 0]
         );
 
         // Tell WebGL how to put buffer position data into vertexPosition attribute
         {
-            const numComponents = 2;
+            const numComponents = 3;
             const type = gl.FLOAT;
             const normalize = false;
             const stride = 0;
@@ -125,8 +132,8 @@ export default class Canvas extends Component<Props> {
         // Tell WebGL how to put buffer color data into vertexColor attribute
         {
             const numComponents = 4;
-            const type = gl.FLOAT;
-            const normalize = false;
+            const type = gl.UNSIGNED_BYTE;
+            const normalize = true;
             const stride = 0;
             const offset = 0;
 
@@ -143,6 +150,9 @@ export default class Canvas extends Component<Props> {
                 programInfo.attribLocations.vertexColor
             );
         }
+
+        // Tell WebGL how to use index buffer
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices);
 
         // Use program as shader program
         gl.useProgram(programInfo.program);
@@ -161,11 +171,12 @@ export default class Canvas extends Component<Props> {
 
         {
             const offset = 0;
-            const vertexCount = 4;
-            gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
+            const type = gl.UNSIGNED_SHORT;
+            const vertexCount = 36;
+            gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
         }
 
-        this.squareRotation += deltaTime;
+        this.rotation += deltaTime;
     }
 
 
@@ -185,30 +196,7 @@ export default class Canvas extends Component<Props> {
             return
         }
 
-        const vertexShaderSource = `
-            attribute vec4 aVertexPosition;
-            attribute vec4 aVertexColor;
-
-            uniform mat4 uModelViewMatrix;
-            uniform mat4 uProjectionMatrix;
-
-            varying lowp vec4 vColor;
-
-            void main() {
-                gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
-                vColor = aVertexColor;
-            }
-        `;
-
-        const fragmentShaderSource = `
-            varying lowp vec4 vColor;
-
-            void main() {
-                gl_FragColor = vColor;
-            }
-        `;
-
-        const shaderProgram = this.initializeShaderProgram(gl, vertexShaderSource, fragmentShaderSource);
+        const shaderProgram = createShaderProgram(gl, vertexShaderSource, fragmentShaderSource);
 
         const programInfo: ProgramInfo = {
             program: shaderProgram,
@@ -243,86 +231,53 @@ export default class Canvas extends Component<Props> {
     }
 
     /**
-     * Iniitializes a WebGL shader program
-     * @param  {WebGLRenderingContext} gl    WebGL context
-     * @param  {string} vertexShaderSource   Vertex shader source code
-     * @param  {string} fragmentShaderSource Fragment shader source code
-     * @return {WebGLProgram}                The WebGL shader program
-     */
-    initializeShaderProgram: (gl: WebGLRenderingContext, vertexShaderSource: string, fragmentShaderSource: string) => ?WebGLProgram;
-    initializeShaderProgram(gl: WebGLRenderingContext, vertexShaderSource: string, fragmentShaderSource: string): ?WebGLProgram {
-        // Create shaders
-        const vertexShader = this.loadShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
-        const fragmentShader = this.loadShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
-        if(vertexShader == null || fragmentShader == null) {
-            console.log('Error loading shaders');
-            return null;
-        }
-
-        // Create shader program
-        const shaderProgram = gl.createProgram();
-        gl.attachShader(shaderProgram, vertexShader);
-        gl.attachShader(shaderProgram, fragmentShader);
-        gl.linkProgram(shaderProgram);
-
-        // Error logging
-        if(!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-            console.log('Could not link shader program: ', gl.getProgramInfoLog(shaderProgram));
-            return null;
-        }
-
-        return shaderProgram;
-
-    }
-
-    /**
-     * Creates a shader, uploads source and compiles it
-     * @param  {WebGLRenderingContext} gl       WebGL context
-     * @param  {number} type                    Shader type
-     * @param  {string} source                  Shader source code
-     * @return {WebGLShader}                    Created shader
-     */
-    loadShader: (gl: WebGLRenderingContext, type: number, source: string) => ?WebGLShader;
-    loadShader(gl: WebGLRenderingContext, type: number, source: string): ?WebGLShader {
-        // Create a shader
-        const shader = gl.createShader(type);
-
-        // Upload source
-        gl.shaderSource(shader, source);
-
-        // Compile the shader
-        gl.compileShader(shader);
-
-        // Error logging
-        if(!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-            let infoLog = gl.getShaderInfoLog(shader);
-            if(infoLog != null) {
-                console.log('Could not compile shader: ', infoLog);
-            }
-            gl.deleteShader(shader);
-            return null;
-        }
-
-        return shader;
-
-    }
-
-    /**
      * Initializes buffers
      * @param  {WebGLRenderingContext} gl   WebGL context
      * @return {{position: WebGLBuffer}}    Object with buffers
      */
     initializeBuffers: (gl: WebGLRenderingContext) => BufferContainer;
     initializeBuffers(gl: WebGLRenderingContext): BufferContainer {
-        // Create a buffer for the squares position
+        // Create a buffer for the cube's position
         const positionBuffer = gl.createBuffer();
 
         // Array of position coordinates
         const positions = [
-            1.0, 1.0,
-            -1.0, 1.0,
-            1.0, -1.0,
-            -1.0, -1.0,
+            // Front face
+            -1.0, -1.0, 1.0,
+            1.0, -1.0, 1.0,
+            1.0, 1.0, 1.0,
+            -1.0, 1.0, 1.0,
+
+            // Back face
+            -1.0, -1.0, -1.0,
+            -1.0, 1.0, -1.0,
+            1.0, 1.0, -1.0,
+            1.0, -1.0, -1.0,
+
+            // Top face
+            -1.0, 1.0, -1.0,
+            -1.0, 1.0, 1.0,
+            1.0, 1.0, 1.0,
+            1.0, 1.0, -1.0,
+
+            // Bottom face
+            -1.0, -1.0, -1.0,
+            1.0, -1.0, -1.0,
+            1.0, -1.0, 1.0,
+            -1.0, -1.0, 1.0,
+
+            // Right face
+            1.0, -1.0, -1.0,
+            1.0, 1.0, -1.0,
+            1.0, 1.0, 1.0,
+            1.0, -1.0, 1.0,
+
+            // Left face
+            -1.0, -1.0, -1.0,
+            -1.0, -1.0, 1.0,
+            -1.0, 1.0, 1.0,
+            -1.0, 1.0, -1.0,
+
         ];
 
         // Set positionBuffer as current buffer to apply operations on
@@ -335,22 +290,51 @@ export default class Canvas extends Component<Props> {
 
         // Create buffer for colors
         const colorBuffer = gl.createBuffer();
-        // Color Array
-        const colors = [
-            1.0, 1.0, 1.0, 1.0,
-            1.0, 0.0, 0.0, 1.0,
-            0.0, 1.0, 0.0, 1.0,
-            0.0, 0.0, 1.0, 1.0,
+        // Create color array for all vertices
+        const faceColors = [
+            [255, 255, 255, 255],
+            [255, 0.0, 0.0, 255],
+            [0.0, 255, 0.0, 255],
+            [0.0, 0.0, 255, 255],
+            [255, 255, 0.0, 255],
+            [255, 0.0, 255, 255],
         ];
+        var colors = [];
+        for(let i = 0; i < faceColors.length; ++i){
+            const c = faceColors[i];
+            colors = colors.concat(c, c, c, c);
+        }
+
+
         gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
         gl.bufferData(gl.ARRAY_BUFFER,
-            new Float32Array(colors),
+            new Uint8Array(colors),
             gl.STATIC_DRAW,
+        );
+
+
+        //Create a buffer for indices
+        const indexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+
+        const indices = [
+            0, 1, 2,    0, 2, 3,    // Front
+            4, 5, 6,    4, 6, 7,    // Back
+            8, 9, 10,   8, 10, 11,  // Top
+            12, 13, 14, 12, 14, 15, // Bottom
+            16, 17, 18, 16, 18, 19,  // Right
+            20, 21, 22, 20, 22, 23, // Left
+        ];
+
+        // Send index data to element array
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,
+            new Uint16Array(indices), gl.STATIC_DRAW
         );
 
         return {
             position: positionBuffer,
             color: colorBuffer,
+            indices: indexBuffer
         };
     }
 
