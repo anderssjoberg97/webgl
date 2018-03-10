@@ -1,16 +1,13 @@
 // @flow
 
 export const vertexShaderSource = `
-    attribute vec4 aVertexPosition;
-    attribute vec4 aVertexColor;
+    // Will receive data from a buffer
+    attribute vec2 a_position;
 
-    uniform mat4 uModelViewMatrix;
-    uniform mat4 uProjectionMatrix;
-
-    varying lowp vec4 vColor;
+    uniform mat3 u_matrix;
 
     void main() {
-        gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
-        vColor = aVertexColor;
+        // Multiply position with matrix
+        gl_Position = vec4((u_matrix * vec3(a_position, 1)).xy, 0, 1);
     }
 `;

@@ -62,3 +62,12 @@ export function compileShader(gl: WebGLRenderingContext, type: number, source: s
     return shader;
 
 }
+
+/**
+ * Returns a random number 0 -> cap - 1
+ * @param {number} cap Max cap
+ * @return {number} A random number
+ */
+export function randomInt(cap: number): number{
+    return Math.floor(Math.random() * cap);
+}

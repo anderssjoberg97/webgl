@@ -1,9 +1,14 @@
 // @flow
 
 export const fragmentShaderSource = `
-    varying lowp vec4 vColor;
+    // Set a precision
+    precision mediump float;
+
+    // Color input
+    uniform vec4 u_color;
 
     void main() {
-        gl_FragColor = vColor;
+        // gl_FragColor must be set by fragment shader
+        gl_FragColor = u_color;
     }
 `;
