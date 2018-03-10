@@ -41,6 +41,17 @@ export default class Canvas extends Component<Props> {
     fudgeFactor = 1;
 
     matrix = {
+        zToW: function(fudgeFactor: number): Mat4 {
+            let zToWMatrix = mat4.create();
+            mat4.set(zToWMatrix,
+                1, 0, 0, 0,
+                0, 1, 0, 0,
+                0, 0, 1, fudgeFactor,
+                0, 0, 0, 1,
+            );
+            return zToWMatrix;
+
+        },
         projection: function(width: number, height: number, depth: number): Mat4{
             let projectionMatrix = mat4.create();
             mat4.set(projectionMatrix,
@@ -243,7 +254,14 @@ export default class Canvas extends Component<Props> {
         gl.uniform1f(programInfo.uniformLocations.fudge, this.fudgeFactor);
 
         // Compute matrices and set matrix uniform
-        let matrix = this.matrix.projection(gl.canvas.width, gl.canvas.height, 400);
+        let matrix = this.matrix.zToW(this.fudgeFactor);
+        mat4.multiply(matrix,
+            matrix,
+            this.matrix.projection(gl.canvas.width,
+                gl.canvas.height,
+                400
+            )
+        );
         this.matrix.translate(matrix, this.translation[0], this.translation[1], this.translation[2]);
         this.matrix.xRotate(matrix, this.rotation[0]);
         this.matrix.yRotate(matrix, this.rotation[1]);
