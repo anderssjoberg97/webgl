@@ -1,9 +1,7 @@
 // @flow
 
 export const vertexShaderSource = `
-    // Will receive data from a buffer
     attribute vec4 a_position;
-    // Will receive color data from a buffer
     attribute vec4 a_color;
 
     uniform mat4 u_matrix;
@@ -12,6 +10,8 @@ export const vertexShaderSource = `
 
     void main() {
         // Multiply position with matrix
-        vec4 position = u_matrix * a_position;
+        gl_Position = u_matrix * a_position;
+
+        v_color = a_color;
     }
 `;

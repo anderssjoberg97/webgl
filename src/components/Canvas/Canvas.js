@@ -18,9 +18,7 @@ type ProgramInfo = {
         color: number,
     },
     uniformLocations: {
-        resolution: WebGLUniformLocation,
         matrix: WebGLUniformLocation,
-        fudge: WebGLUniformLocation,
     }
 };
 
@@ -34,23 +32,24 @@ type Props = {
 };
 export default class Canvas extends Component<Props> {
 
-    translation = [100, 300, 0];
-    rotation = [ 0.1 * Math.PI, 0.1 * Math.PI, 0.1 * Math.PI];
+    translation = [-100, 0, -360];
+    rotation = [ 0 * Math.PI, 0 * Math.PI, 0 * Math.PI];
     scale = [1, 1, 1];
     color = [Math.random(), Math.random(), Math.random(), 4];
-    fudgeFactor = 1;
+    fieldOfView = 60 * Math.PI / 180 ;
 
     matrix = {
-        zToW: function(fudgeFactor: number): Mat4 {
-            let zToWMatrix = mat4.create();
-            mat4.set(zToWMatrix,
-                1, 0, 0, 0,
-                0, 1, 0, 0,
-                0, 0, 1, fudgeFactor,
-                0, 0, 0, 1,
+        perspective: function(fieldOfView: number, aspect: number, near: number, far: number): Mat4{
+            let f = Math.tan(Math.PI * 0.5 - 0.5 * fieldOfView);
+            let rangeInv = 1.0 / (near - far);
+            let perspectiveMatrix = mat4.create();
+            mat4.set(perspectiveMatrix,
+                f / aspect, 0, 0, 0,
+                0, f, 0, 0,
+                0, 0, (near + far) * rangeInv, -1,
+                0, 0, near * far * rangeInv * 2, 0
             );
-            return zToWMatrix;
-
+            return perspectiveMatrix;
         },
         projection: function(width: number, height: number, depth: number): Mat4{
             let projectionMatrix = mat4.create();
@@ -189,12 +188,13 @@ export default class Canvas extends Component<Props> {
 
         // Look up attribute locations
         const positionAttributeLocation = gl.getAttribLocation(shaderProgram, 'a_position');
+        if(positionAttributeLocation == -1){
+            console.log('Could not get position attribute');
+        }
         const colorAttributeLocation = gl.getAttribLocation(shaderProgram, 'a_color');
 
         // Look up uniforms
-        const resolutionUniformLocation = gl.getUniformLocation(shaderProgram, 'u_resolution');
         const matrixUniformLocation = gl.getUniformLocation(shaderProgram, 'u_matrix');
-        const fudgeLocation = gl.getUniformLocation(shaderProgram, 'u_fudgeFactor');
 
         // Create a buffer for position data
         const positionBuffer = gl.createBuffer();
@@ -211,9 +211,7 @@ export default class Canvas extends Component<Props> {
                     color: colorAttributeLocation,
                 },
                 uniformLocations: {
-                    resolution: resolutionUniformLocation,
                     matrix: matrixUniformLocation,
-                    fudge: fudgeLocation,
                 }
             },
             {
@@ -247,21 +245,11 @@ export default class Canvas extends Component<Props> {
         // Use recently set up program
         gl.useProgram(programInfo.program);
 
-        // Set resolution uniform
-        gl.uniform2f(programInfo.uniformLocations.resolution, gl.canvas.width, gl.canvas.height);
-
-        // Set fudge factor uniform
-        gl.uniform1f(programInfo.uniformLocations.fudge, this.fudgeFactor);
-
         // Compute matrices and set matrix uniform
-        let matrix = this.matrix.zToW(this.fudgeFactor);
-        mat4.multiply(matrix,
-            matrix,
-            this.matrix.projection(gl.canvas.width,
-                gl.canvas.height,
-                400
-            )
-        );
+        let aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
+        let zNear = 1;
+        let zFar = 2000;
+        let matrix = this.matrix.perspective(this.fieldOfView, aspect, zNear, zFar);
         this.matrix.translate(matrix, this.translation[0], this.translation[1], this.translation[2]);
         this.matrix.xRotate(matrix, this.rotation[0]);
         this.matrix.yRotate(matrix, this.rotation[1]);
