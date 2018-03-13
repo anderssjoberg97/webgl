@@ -8,6 +8,7 @@ import {vertexShaderSource} from './shaders/vertex';
 import {fragmentShaderSource} from './shaders/fragment';
 
 import {setGeometry, setColors} from './models/letter/';
+import {setGeometry as setFloorGeometry, setColors as setFloorColors} from './models/floor/';
 import {matrices} from './matrices';
 
 type ProgramInfo = {
@@ -35,6 +36,9 @@ export default class Renderer {
     scale = [1, 1, 1];
     color = [Math.random(), Math.random(), Math.random(), 4];
     fieldOfView = 60 * Math.PI / 180 ;
+    cameraAngle = 0.1 * Math.PI;
+    numFs = 10;
+    radius = 300;
 
     constructor(){
         // Bind class methods
@@ -67,11 +71,12 @@ export default class Renderer {
         // Look up uniforms
         const matrixUniformLocation = gl.getUniformLocation(shaderProgram, 'u_matrix');
 
-        // Create a buffer for position data
+        // Create a buffer for position data and upload to it
         const positionBuffer = gl.createBuffer();
 
-        // Create a buffer for color data
+        // Create a buffer for color data and upload to it
         const colorBuffer = gl.createBuffer();
+
 
         // Set fields
         this.gl = gl;
@@ -132,25 +137,150 @@ export default class Renderer {
         // Use recently set up program
         this.gl.useProgram(this.programInfo.program);
 
-        // Compute matrices and set matrix uniform
+        // Compute projection matrix
         let aspect = this.gl.canvas.clientWidth / this.gl.canvas.clientHeight;
         let zNear = 1;
-        let zFar = 2000;
-        let matrix = matrices.perspective(this.fieldOfView, aspect, zNear, zFar);
-        matrices.translate(matrix, this.translation[0], this.translation[1], this.translation[2]);
-        matrices.xRotate(matrix, this.rotation[0]);
-        matrices.yRotate(matrix, this.rotation[1]);
-        matrices.zRotate(matrix, this.rotation[2]);
-        matrices.scale(matrix, this.scale[0], this.scale[1], this.scale[2]);
-        //this.matrix.translate(matrix, -50, -75); // For moving origin point
-        this.gl.uniformMatrix4fv(this.programInfo.uniformLocations.matrix, false, (matrix: any));
+        let zFar = 3000;
+        let projectionMatrix = matrices.perspective(this.fieldOfView, aspect, zNear, zFar);
+
+        // Compute camera matrix
+        let cameraMatrix = matrices.yRotation(this.cameraAngle);
+        matrices.translate(cameraMatrix, 0, this.radius * 2, this.radius * 5);
+        mat4.rotateX(cameraMatrix, cameraMatrix, -0.4);
 
 
+        // Compute viewmatrix
+        let viewMatrix: Mat4 = mat4.create();
+        mat4.invert(viewMatrix, cameraMatrix);
+
+        let viewProjectionMatrix = mat4.create();
+        mat4.multiply(viewProjectionMatrix, projectionMatrix, viewMatrix);
+
+        /* =============== Draw bus ================== */
+        /*// Turn on the vertex attribute
+        this.gl.enableVertexAttribArray(this.programInfo.attributeLocations.position);
+        // Bind the position buffer
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.programInfo.buffers.position);
+        // Upload data
+        setBusGeometry(this.gl);
+        // Tell the attribute how to get data out of positionbuffer
+        {
+            const size = 3;             // 3 components per iteration
+            const type = this.gl.FLOAT;      // Data is of type 32bit float
+            const normalize = false;    // Don't normalize the data
+            const stride = 0;           // Move forward regurlarly no skipping
+            const offset = 0;           // Start at the beginning of buffer
+            this.gl.vertexAttribPointer(this.programInfo.attributeLocations.position,
+                size,
+                type,
+                normalize,
+                stride,
+                offset
+            );
+        }
+
+        // Turn on the color attribute
+        this.gl.enableVertexAttribArray(this.programInfo.attributeLocations.color);
+        // Bind the color buffer
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.programInfo.buffers.color);
+        // Upload data
+        setBusColors(this.gl);
+        // Tell WebGL how to get data out of color buffer
+        {
+            const size = 3;
+            const type = this.gl.UNSIGNED_BYTE;
+            const normalize = true;
+            const stride = 0;
+            const offset = 0;
+            this.gl.vertexAttribPointer(this.programInfo.attributeLocations.color,
+                size,
+                type,
+                normalize,
+                stride,
+                offset,
+            );
+        }*/
+
+        // Do actual drawing of floor
+        {
+            let matrix = mat4.clone(viewProjectionMatrix);
+            matrices.translate(matrix, 0, 0, 0);
+
+            this.gl.uniformMatrix4fv(this.programInfo.uniformLocations.matrix, false, (matrix: any));
+
+            // Draw geometry
+            const primitiveType = this.gl.TRIANGLES;
+            const offset = 0;
+            const count = 3  * 1;
+            this.gl.drawArrays(primitiveType, offset, count);
+        }
+
+        /* =============== Draw floor ================== */
         // Turn on the vertex attribute
         this.gl.enableVertexAttribArray(this.programInfo.attributeLocations.position);
         // Bind the position buffer
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.programInfo.buffers.position);
-        // Load in geometry
+        // Upload data
+        setFloorGeometry(this.gl);
+        // Tell the attribute how to get data out of positionbuffer
+        {
+            const size = 3;             // 3 components per iteration
+            const type = this.gl.FLOAT;      // Data is of type 32bit float
+            const normalize = false;    // Don't normalize the data
+            const stride = 0;           // Move forward regurlarly no skipping
+            const offset = 0;           // Start at the beginning of buffer
+            this.gl.vertexAttribPointer(this.programInfo.attributeLocations.position,
+                size,
+                type,
+                normalize,
+                stride,
+                offset
+            );
+        }
+
+        // Turn on the color attribute
+        this.gl.enableVertexAttribArray(this.programInfo.attributeLocations.color);
+        // Bind the color buffer
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.programInfo.buffers.color);
+        // Upload data
+        setFloorColors(this.gl);
+        // Tell WebGL how to get data out of color buffer
+        {
+            const size = 3;
+            const type = this.gl.UNSIGNED_BYTE;
+            const normalize = true;
+            const stride = 0;
+            const offset = 0;
+            this.gl.vertexAttribPointer(this.programInfo.attributeLocations.color,
+                size,
+                type,
+                normalize,
+                stride,
+                offset,
+            );
+        }
+
+        // Do actual drawing of floor
+        {
+            let matrix = mat4.clone(viewProjectionMatrix);
+            matrices.translate(matrix, 0, 0, 0);
+
+            this.gl.uniformMatrix4fv(this.programInfo.uniformLocations.matrix, false, (matrix: any));
+
+            // Draw geometry
+            const primitiveType = this.gl.TRIANGLES;
+            const offset = 0;
+            const count = 3  * 2;
+            this.gl.drawArrays(primitiveType, offset, count);
+        }
+
+        /* =============== Draw Fs ===================== */
+        /*
+        // Turn on the vertex attribute
+        this.gl.enableVertexAttribArray(this.programInfo.attributeLocations.position);
+        // Bind the position buffer
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.programInfo.buffers.position);
+        // Upload data
         setGeometry(this.gl);
         // Tell the attribute how to get data out of positionbuffer
         {
@@ -172,7 +302,7 @@ export default class Renderer {
         this.gl.enableVertexAttribArray(this.programInfo.attributeLocations.color);
         // Bind the color buffer
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.programInfo.buffers.color);
-        // Load in colors
+        // Upload data
         setColors(this.gl);
         // Tell WebGL how to get data out of color buffer
         {
@@ -190,11 +320,22 @@ export default class Renderer {
             );
         }
 
-        // Draw geometry
-        const primitiveType = this.gl.TRIANGLES;
-        const offset = 0;
-        const count = 16 * 6;
-        this.gl.drawArrays(primitiveType, offset, count);
+        for(let i = 0; i < this.numFs; ++i){
+            let angle = i * Math.PI * 2 / this.numFs;
+            let x = Math.cos(angle) * this.radius;
+            let y = Math.sin(angle) * this.radius;
+
+            let matrix = mat4.clone(viewProjectionMatrix);
+            matrices.translate(matrix, x, 0, y);
+
+            this.gl.uniformMatrix4fv(this.programInfo.uniformLocations.matrix, false, (matrix: any));
+
+            // Draw geometry
+            const primitiveType = this.gl.TRIANGLES;
+            const offset = 0;
+            const count = 16 * 6;
+            this.gl.drawArrays(primitiveType, offset, count);
+        }*/
     }
 
 
