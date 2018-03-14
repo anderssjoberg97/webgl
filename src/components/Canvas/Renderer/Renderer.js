@@ -20,7 +20,7 @@ type ProgramInfo = {
         color: number,
     },
     uniformLocations: {
-        matrix: WebGLUniformLocation,
+        matrix: WebGLUniformLocation
     },
     buffers: {
         position: WebGLBuffer,
@@ -40,7 +40,10 @@ export default class Renderer {
     fieldOfView = 60 * Math.PI / 180 ;
     cameraAngle = 0.1 * Math.PI;
     numFs = 10;
-    radius = 500;
+    radius = 300;
+
+    numBuses = 1000;
+    buses: Array<Bus> = [];
 
     constructor(){
         // Bind class methods
@@ -72,6 +75,7 @@ export default class Renderer {
 
         // Look up uniforms
         const matrixUniformLocation = gl.getUniformLocation(shaderProgram, 'u_matrix');
+        const translationUniformLocation = gl.getUniformLocation(shaderProgram, 'u_translation');
 
         // Create a buffer for position data and upload to it
         const positionBuffer = gl.createBuffer();
@@ -95,6 +99,14 @@ export default class Renderer {
                 color: colorBuffer,
             }
         };
+
+        // Initialize random buses
+        for(let i = 0; i < this.numBuses; ++i){
+            this.buses[i] = new Bus([randomInt(-500, 500),
+                randomInt(-500, 500)],
+                randomInt(0, Math.PI * 2),
+                randomInt(10, 30));
+        }
     }
 
     /**
@@ -203,10 +215,14 @@ export default class Renderer {
             );
         }
 
-        // Do actual drawing of floor
-        {
-            let matrix = mat4.clone(viewProjectionMatrix);
-            matrices.translate(matrix, 0, 0, 0);
+        let matrix: Mat4;
+        // Do actual drawing of buses
+        this.buses.forEach((bus: Bus) => {
+            bus.generateNextPosition(deltaTime);
+            matrix = mat4.clone(viewProjectionMatrix);
+
+            matrices.translate(matrix, bus.position[0], 0, bus.position[1]);
+            mat4.rotateY(matrix, matrix, bus.yRotation);
 
             this.gl.uniformMatrix4fv(this.programInfo.uniformLocations.matrix, false, (matrix: any));
 
@@ -215,7 +231,7 @@ export default class Renderer {
             const offset = 0;
             const count = 6  * 5;
             this.gl.drawArrays(primitiveType, offset, count);
-        }
+        });
 
         /* =============== Draw floor ================== */
         // Turn on the vertex attribute

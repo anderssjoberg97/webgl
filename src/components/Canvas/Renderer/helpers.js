@@ -64,10 +64,11 @@ export function compileShader(gl: WebGLRenderingContext, type: number, source: s
 }
 
 /**
- * Returns a random number 0 -> cap - 1
- * @param {number} cap Max cap
+ * Returns a random number lower -> upper - 1
+ * @param {number} lower Lower boundary
+ * @param {number} upper Upper boundary
  * @return {number} A random number
  */
-export function randomInt(cap: number): number{
-    return Math.floor(Math.random() * cap);
+export function randomInt(lower: number, upper: number): number{
+    return Math.floor(Math.random() * (upper - lower) + lower);
 }
